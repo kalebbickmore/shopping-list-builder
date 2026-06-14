@@ -38,12 +38,20 @@ export default defineEventHandler(async (event) => {
         action: 'process',
         json: 1,
         page_size: 8,
+        // sort by popularity so well-known products surface first...
+        sort_by: 'popularity_key',
+        // ...and restrict to US-sold products so brands are recognizable.
+        tagtype_0: 'countries',
+        tag_contains_0: 'contains',
+        tag_0: 'united-states',
         fields: 'code,product_name,brands,image_small_url'
       },
       headers: foodApiKey ? { Authorization: `Bearer ${foodApiKey}` } : undefined
     })
 
-    // Reshape the messy upstream data into a clean payload for the client.
+    // Reshape the messy upstream data into a clean payload for the client,
+    // dropping nameless entries and de-duplicating by name + brand.
+    const seen = new Set<string>()
     return (data.products ?? [])
       .map(product => ({
         id: product.code && product.code.length > 0 ? product.code : crypto.randomUUID(),
@@ -51,7 +59,13 @@ export default defineEventHandler(async (event) => {
         brand: (product.brands ?? '').split(',')[0]?.trim() ?? '',
         imageUrl: product.image_small_url ?? null
       }))
-      .filter(food => food.name.length > 0)
+      .filter((food) => {
+        if (food.name.length === 0) return false
+        const key = `${food.name.toLowerCase()}|${food.brand.toLowerCase()}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
   } catch {
     // Translate upstream failures into a proper HTTP error for our client.
     throw createError({ statusCode: 502, statusMessage: 'Food provider unavailable' })

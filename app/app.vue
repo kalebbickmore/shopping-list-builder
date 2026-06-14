@@ -17,9 +17,13 @@ useSeoMeta({
       <template #left>
         <NuxtLink
           to="/"
-          class="text-lg font-semibold text-highlighted"
+          class="flex items-center gap-2 text-lg font-semibold text-highlighted"
         >
-          🛒 Shopping List
+          <UIcon
+            name="i-lucide-shopping-cart"
+            class="size-5 text-primary"
+          />
+          Shopping List
         </NuxtLink>
       </template>
 

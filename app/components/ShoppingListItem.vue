@@ -1,30 +1,47 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { Item } from '~/types'
 
-// props = data DOWN. Components in app/components are auto-imported by Nuxt,
-// but interfaces still need importing.
-defineProps<{
+const props = defineProps<{
   item: Item
 }>()
 
-// emits = events UP. We never mutate the prop; we ask the parent/store.
 const emit = defineEmits<{
   toggle: [id: string]
   remove: [id: string]
 }>()
+
+const dragging = ref(false)
+
+function onDragStart(e: DragEvent) {
+  dragging.value = true
+  // Hand the item's id to the drop target via the drag payload.
+  e.dataTransfer?.setData('text/plain', props.item.id)
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+}
+
+function onDragEnd() {
+  dragging.value = false
+}
 </script>
 
 <template>
-  <!-- Tailwind utility classes do all the styling. The "border-default",
-       "bg-default", "text-muted" tokens come from Nuxt UI's design system. -->
-  <li class="flex items-center justify-between gap-3 rounded-lg border border-default bg-default px-3 py-2">
-    <div class="flex items-center gap-3">
-      <!-- UCheckbox is a Nuxt UI component. It emits update:model-value when toggled. -->
+  <li
+    draggable="true"
+    :class="['flex items-center justify-between gap-3 py-2', dragging ? 'opacity-50' : '']"
+    @dragstart="onDragStart"
+    @dragend="onDragEnd"
+  >
+    <div class="flex min-w-0 items-center gap-3">
+      <UIcon
+        name="i-lucide-grip-vertical"
+        class="size-4 shrink-0 cursor-grab text-dimmed"
+      />
       <UCheckbox
         :model-value="item.done"
         @update:model-value="emit('toggle', item.id)"
       />
-      <span :class="['truncate', item.done ? 'text-muted line-through' : 'text-highlighted']">
+      <span :class="['truncate text-sm', item.done ? 'text-muted line-through' : 'text-highlighted']">
         {{ item.name }}
       </span>
       <UBadge
@@ -41,7 +58,7 @@ const emit = defineEmits<{
       icon="i-lucide-x"
       color="neutral"
       variant="ghost"
-      size="sm"
+      size="xs"
       aria-label="Remove item"
       @click="emit('remove', item.id)"
     />

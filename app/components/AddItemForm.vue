@@ -2,20 +2,28 @@
 import { ref } from 'vue'
 import type { FoodSuggestion } from '~/types'
 
+// `stores` (data DOWN) = stores already used, for quick-pick chips.
+defineProps<{
+  stores?: string[]
+}>()
+
 const emit = defineEmits<{
-  add: [name: string, quantity: number]
+  add: [name: string, quantity: number, store: string]
 }>()
 
 // useFoodSearch() is auto-imported from app/composables — no import needed.
 const { query, results, loading, error, clear } = useFoodSearch()
 const quantity = ref(1)
+const store = ref('')
 const open = ref(false)
 
 function submit() {
   const name = query.value.trim()
   if (!name) return
-  emit('add', name, quantity.value)
+  emit('add', name, quantity.value, store.value)
   quantity.value = 1
+  // Keep `store` so you can add several items for the same store in a row;
+  // clear it with the ✕ when you move on.
   clear()
   open.value = false
 }
@@ -28,83 +36,129 @@ function pick(food: FoodSuggestion) {
 
 <template>
   <form
-    class="flex gap-2"
+    class="space-y-3"
     @submit.prevent="submit"
   >
-    <div class="relative flex-1">
-      <UInput
-        v-model="query"
-        placeholder="Search foods… (e.g. milk)"
-        icon="i-lucide-search"
-        :loading="loading"
-        autocomplete="off"
-        class="w-full"
-        @focus="open = true"
-        @blur="open = false"
+    <!-- Quick-pick stores ABOVE the inputs, so the suggestions dropdown (which
+         opens below the search box) can never cover them. The active store is
+         highlighted. -->
+    <div
+      v-if="stores && stores.length > 0"
+      class="flex flex-wrap items-center gap-1.5"
+    >
+      <span class="text-xs font-medium text-muted">Stores:</span>
+      <UButton
+        v-for="s in stores"
+        :key="s"
+        size="xs"
+        color="neutral"
+        :variant="store === s ? 'solid' : 'soft'"
+        :label="s"
+        @click="store = s"
       />
-
-      <!-- Live suggestions from our /api/foods server route -->
-      <div
-        v-if="open && query.trim().length >= 2"
-        class="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-default bg-default shadow-lg"
-      >
-        <p
-          v-if="loading"
-          class="px-3 py-2 text-sm text-muted"
-        >
-          Searching…
-        </p>
-        <p
-          v-else-if="error"
-          class="px-3 py-2 text-sm text-error"
-        >
-          {{ error }}
-        </p>
-        <p
-          v-else-if="results.length === 0"
-          class="px-3 py-2 text-sm text-muted"
-        >
-          No matches
-        </p>
-
-        <ul
-          v-else
-          class="max-h-72 overflow-y-auto"
-        >
-          <!-- @mousedown.prevent keeps the input focused so the click registers
-               before @blur closes the menu. -->
-          <li
-            v-for="food in results"
-            :key="food.id"
-            class="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-elevated"
-            @mousedown.prevent="pick(food)"
-          >
-            <UAvatar
-              :src="food.imageUrl ?? undefined"
-              icon="i-lucide-shopping-basket"
-              size="sm"
-            />
-            <span class="flex-1 truncate text-sm text-highlighted">{{ food.name }}</span>
-            <span
-              v-if="food.brand"
-              class="truncate text-xs text-muted"
-            >{{ food.brand }}</span>
-          </li>
-        </ul>
-      </div>
     </div>
 
-    <UInput
-      v-model.number="quantity"
-      type="number"
-      :min="1"
-      class="w-20"
-      aria-label="Quantity"
-    />
-    <UButton
-      type="submit"
-      icon="i-lucide-plus"
-      label="Add"
-    />
+    <div class="flex gap-2">
+      <!-- Food search. The dropdown lives inside this relative wrapper, so it
+           only spans the search box's width — the store field beside it stays
+           visible. -->
+      <div class="relative flex-1">
+        <UInput
+          v-model="query"
+          placeholder="Search foods…"
+          icon="i-lucide-search"
+          autocomplete="off"
+          class="w-full"
+          @focus="open = true"
+          @blur="open = false"
+        />
+
+        <div
+          v-if="open && query.trim().length >= 2"
+          class="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-default bg-default shadow-lg"
+        >
+          <p
+            v-if="error"
+            class="px-3 py-2 text-sm text-error"
+          >
+            {{ error }}
+          </p>
+
+          <!-- Keep results visible while the next query loads, so the list
+               doesn't flash on every keystroke. -->
+          <ul
+            v-else-if="results.length > 0"
+            class="max-h-72 overflow-y-auto"
+          >
+            <!-- @mousedown.prevent keeps the input focused so the click registers
+                 before @blur closes the menu. -->
+            <li
+              v-for="food in results"
+              :key="food.id"
+              class="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-elevated"
+              @mousedown.prevent="pick(food)"
+            >
+              <UAvatar
+                :src="food.imageUrl ?? undefined"
+                icon="i-lucide-shopping-basket"
+                size="sm"
+              />
+              <span class="flex-1 truncate text-sm text-highlighted">{{ food.name }}</span>
+              <span
+                v-if="food.brand"
+                class="truncate text-xs text-muted"
+              >{{ food.brand }}</span>
+            </li>
+          </ul>
+
+          <p
+            v-else-if="loading"
+            class="px-3 py-2 text-sm text-muted"
+          >
+            Searching…
+          </p>
+          <p
+            v-else
+            class="px-3 py-2 text-sm text-muted"
+          >
+            No matches
+          </p>
+        </div>
+      </div>
+
+      <UInput
+        v-model="store"
+        placeholder="Store"
+        icon="i-lucide-store"
+        class="w-36"
+      >
+        <template
+          v-if="store"
+          #trailing
+        >
+          <UButton
+            color="neutral"
+            variant="link"
+            size="xs"
+            icon="i-lucide-x"
+            aria-label="Clear store"
+            @click="store = ''"
+          />
+        </template>
+      </UInput>
+
+      <UInput
+        v-model.number="quantity"
+        type="number"
+        :min="1"
+        class="w-16"
+        aria-label="Quantity"
+      />
+      <UButton
+        type="submit"
+        icon="i-lucide-plus"
+        aria-label="Add item"
+      />
+    </div>
   </form>
 </template>

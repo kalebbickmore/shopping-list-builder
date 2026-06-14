@@ -4,6 +4,7 @@ export interface Item {
   name: string
   quantity: number
   done: boolean
+  store: string // which store to buy it from ('' = unassigned)
 }
 
 // A food suggestion returned by our /api/foods server route.
