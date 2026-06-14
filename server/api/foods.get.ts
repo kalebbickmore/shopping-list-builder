@@ -1,4 +1,4 @@
-// SERVER ROUTE — runs on the server (Node/Vercel function), never in the browser.
+// SERVER ROUTE, runs on the server (Node/Vercel function), never in the browser.
 // File path maps to a URL: server/api/foods.get.ts  ->  GET /api/foods
 //
 // THIS is the "protected API". The browser calls OUR endpoint (/api/foods); we
@@ -8,7 +8,7 @@
 //
 // We use OpenFoodFacts' "suggest" endpoint on the INGREDIENTS taxonomy, which
 // returns GENERIC food names (e.g. milk -> "milk", "cream", "milk powder") with
-// no brands — instead of branded products.
+// no brands, instead of branded products.
 
 export default defineEventHandler(async (event) => {
   // Read the secret key on the SERVER only. OpenFoodFacts doesn't need one, but

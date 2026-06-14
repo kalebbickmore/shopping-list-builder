@@ -11,7 +11,7 @@ const emit = defineEmits<{
   add: [name: string, quantity: number, store: string]
 }>()
 
-// useFoodSearch() is auto-imported from app/composables — no import needed.
+// useFoodSearch() is auto-imported from app/composables, no import needed.
 const { query, results, loading, error, clear } = useFoodSearch()
 const quantity = ref(1)
 const store = ref('')
@@ -46,21 +46,28 @@ function pick(food: FoodSuggestion) {
       v-if="stores && stores.length > 0"
       class="flex flex-wrap items-center gap-1.5"
     >
-      <span class="text-xs font-medium text-muted">Stores:</span>
+      <span class="flex items-center gap-1 text-xs font-medium text-muted">
+        <UIcon
+          name="i-lucide-tags"
+          class="size-3.5"
+        />
+        Quick pick:
+      </span>
       <UButton
         v-for="s in stores"
         :key="s"
         size="xs"
-        color="neutral"
+        :color="store === s ? 'primary' : 'neutral'"
         :variant="store === s ? 'solid' : 'soft'"
         :label="s"
-        @click="store = s"
+        class="rounded-full transition-transform active:scale-95"
+        @click="store = store === s ? '' : s"
       />
     </div>
 
     <div class="flex gap-2">
       <!-- Food search. The dropdown lives inside this relative wrapper, so it
-           only spans the search box's width — the store field beside it stays
+           only spans the search box's width, the store field beside it stays
            visible. -->
       <div class="relative flex-1">
         <UInput

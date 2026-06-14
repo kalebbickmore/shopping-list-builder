@@ -7,7 +7,7 @@ import type { FoodSuggestion } from '~/types'
 // Note: we now hit OUR OWN server route ('/api/foods'), not OpenFoodFacts. The
 // server does the third-party call (where a secret key would live). We use
 // `$fetch` (Nuxt's auto-imported HTTP client) rather than useFetch/useAsyncData
-// because this is an imperative, debounced, user-triggered search — not
+// because this is an imperative, debounced, user-triggered search, not
 // component-setup data that needs SSR.
 export function useFoodSearch() {
   const query = ref('')

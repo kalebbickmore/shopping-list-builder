@@ -1,8 +1,10 @@
 export default defineAppConfig({
   ui: {
     colors: {
-      primary: 'green',
-      neutral: 'slate'
+      // Editorial Pantry palette, scales defined in app/assets/css/main.css.
+      primary: 'terracotta',
+      secondary: 'olive',
+      neutral: 'stone'
     }
   }
 })
