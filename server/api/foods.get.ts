@@ -4,17 +4,11 @@
 // THIS is the "protected API". The browser calls OUR endpoint (/api/foods); we
 // call the third-party API from here. A secret key would be read from
 // useRuntimeConfig() below and would never reach the client. (Bonus: this also
-// sidesteps CORS and lets us cache/transform responses.)
-
-interface OffProduct {
-  code?: string
-  product_name?: string
-  brands?: string
-  image_small_url?: string
-}
-interface OffResponse {
-  products?: OffProduct[]
-}
+// sidesteps CORS and lets us shape/transform responses.)
+//
+// We use OpenFoodFacts' "suggest" endpoint on the INGREDIENTS taxonomy, which
+// returns GENERIC food names (e.g. milk -> "milk", "cream", "milk powder") with
+// no brands — instead of branded products.
 
 export default defineEventHandler(async (event) => {
   // Read the secret key on the SERVER only. OpenFoodFacts doesn't need one, but
@@ -29,43 +23,49 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    // $fetch is the server-side HTTP client. If a key were required:
-    //   headers: { Authorization: `Bearer ${foodApiKey}` }
-    const data = await $fetch<OffResponse>('https://world.openfoodfacts.org/cgi/search.pl', {
+    // Returns a plain array of generic ingredient strings.
+    const suggestions = await $fetch<string[]>('https://world.openfoodfacts.org/cgi/suggest.pl', {
       query: {
-        search_terms: term,
-        search_simple: 1,
-        action: 'process',
-        json: 1,
-        page_size: 8,
-        // sort by popularity so well-known products surface first...
-        sort_by: 'popularity_key',
-        // ...and restrict to US-sold products so brands are recognizable.
-        tagtype_0: 'countries',
-        tag_contains_0: 'contains',
-        tag_0: 'united-states',
-        fields: 'code,product_name,brands,image_small_url'
+        tagtype: 'ingredients',
+        lc: 'en',
+        term
       },
+      // If a key were required: headers: { Authorization: `Bearer ${foodApiKey}` }
       headers: foodApiKey ? { Authorization: `Bearer ${foodApiKey}` } : undefined
     })
 
-    // Reshape the messy upstream data into a clean payload for the client,
-    // dropping nameless entries and de-duplicating by name + brand.
+    // The suggest endpoint isn't relevance-sorted, so rank ourselves:
+    // exact match > "starts with the word" > starts-with > contains.
+    const t = term.toLowerCase()
+    const rank = (name: string): number => {
+      const n = name.toLowerCase()
+      if (n === t) return 0
+      if (n.startsWith(`${t} `)) return 1
+      if (n.startsWith(t)) return 2
+      return 3
+    }
+
     const seen = new Set<string>()
-    return (data.products ?? [])
-      .map(product => ({
-        id: product.code && product.code.length > 0 ? product.code : crypto.randomUUID(),
-        name: (product.product_name ?? '').trim(),
-        brand: (product.brands ?? '').split(',')[0]?.trim() ?? '',
-        imageUrl: product.image_small_url ?? null
-      }))
-      .filter((food) => {
-        if (food.name.length === 0) return false
-        const key = `${food.name.toLowerCase()}|${food.brand.toLowerCase()}`
+    return (suggestions ?? [])
+      .map(name => name.trim())
+      .filter((name) => {
+        const key = name.toLowerCase()
+        // Keep only items that actually contain the term (drops loosely-related
+        // synonyms like "E270"/"Cream" for a "milk" search), de-duplicated.
+        if (name.length === 0 || !key.includes(t)) return false
         if (seen.has(key)) return false
         seen.add(key)
         return true
       })
+      .sort((a, b) => rank(a) - rank(b) || a.length - b.length || a.localeCompare(b))
+      .slice(0, 8)
+      .map(name => ({
+        id: name,
+        // Capitalize for display: "peanut butter" -> "Peanut butter".
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        brand: '', // generic items have no brand
+        imageUrl: null // ...and no product image; the UI shows a basket icon
+      }))
   } catch {
     // Translate upstream failures into a proper HTTP error for our client.
     throw createError({ statusCode: 502, statusMessage: 'Food provider unavailable' })
