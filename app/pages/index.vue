@@ -118,7 +118,7 @@ watch(allDone, (done, was) => {
           <template v-else-if="totalCount > 0">
             <p
               v-if="allDone"
-              class="pantry-cheer flex items-center gap-1.5 font-medium text-primary"
+              class="pantry-cheer flex items-center gap-1.5 font-medium text-secondary-600"
             >
               <UIcon
                 name="i-lucide-party-popper"
