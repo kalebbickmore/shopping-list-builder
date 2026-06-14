@@ -1,10 +1,14 @@
 import { ref, watch } from 'vue'
-import { searchFoods, type FoodSuggestion } from '@/services/foodApi'
+import type { FoodSuggestion } from '~/types'
 
-// A "composable" = a function that bundles reactive state + logic so multiple
-// components can reuse it. By convention it's named use*() and returns refs.
-// This one turns a text `query` into live `results` from the food API, while
-// handling debouncing, loading/error states, and cancelling stale requests.
+// A composable: reusable reactive logic. In Nuxt, files in app/composables are
+// AUTO-IMPORTED, so any component can call useFoodSearch() with no import.
+//
+// Note: we now hit OUR OWN server route ('/api/foods'), not OpenFoodFacts. The
+// server does the third-party call (where a secret key would live). We use
+// `$fetch` (Nuxt's auto-imported HTTP client) rather than useFetch/useAsyncData
+// because this is an imperative, debounced, user-triggered search — not
+// component-setup data that needs SSR.
 export function useFoodSearch() {
   const query = ref('')
   const results = ref<FoodSuggestion[]>([])
@@ -30,18 +34,20 @@ export function useFoodSearch() {
     loading.value = true
     error.value = null
 
-    // DEBOUNCE: wait 300ms after the user stops typing before calling the API,
-    // so we don't fire a request on every single keystroke.
+    // DEBOUNCE: wait 300ms after typing stops before calling the API.
     debounceTimer = setTimeout(async () => {
       const myController = new AbortController()
       controller = myController
       try {
-        const found = await searchFoods(term, myController.signal)
-        // STALE GUARD: if a newer request started while we awaited, ignore us.
+        const found = await $fetch<FoodSuggestion[]>('/api/foods', {
+          query: { q: term },
+          signal: myController.signal
+        })
+        // STALE GUARD: ignore if a newer request superseded us mid-flight.
         if (controller !== myController) return
         results.value = found
       } catch {
-        if (myController.signal.aborted) return // expected when superseded — ignore
+        if (myController.signal.aborted) return // expected when superseded
         error.value = 'Could not reach the food database.'
         results.value = []
       } finally {
