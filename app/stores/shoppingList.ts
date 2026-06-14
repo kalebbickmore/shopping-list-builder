@@ -134,6 +134,14 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
     if (item) item.quantity = Math.max(1, Math.round(quantity) || 1)
   }
 
+  // Rename an item inline. Ignores an empty name so a row is never left blank.
+  function setName(id: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const item = items.value.find(i => i.id === id)
+    if (item) item.name = trimmed
+  }
+
   // Create an empty store. Reuses canonical spelling and ignores duplicates so
   // the same store can't appear twice.
   function addStore(name: string) {
@@ -149,6 +157,27 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
     customStores.value = customStores.value.filter(s => s !== name)
     for (const item of items.value) {
       if (item.store === name) item.store = ''
+    }
+  }
+
+  // Rename a store everywhere it appears: on its items and in customStores.
+  // Renaming onto an existing store name merges the two groups. Renaming the
+  // virtual 'Unassigned' group assigns all store-less items to the new store.
+  function renameStore(oldName: string, newName: string) {
+    const canon = canonicalStore(newName)
+    if (!canon) return
+    // 'Unassigned' is the display label for items whose store is '' (empty).
+    const oldStore = oldName === 'Unassigned' ? '' : oldName
+    if (canon === oldStore) return
+
+    for (const item of items.value) {
+      if (item.store === oldStore) item.store = canon
+    }
+    // Drop the old name; keep the new one only if no item now backs it (i.e. an
+    // empty store was renamed), so we don't duplicate a store already in use.
+    customStores.value = customStores.value.filter(s => s !== oldName)
+    if (!stores.value.some(s => s.toLowerCase() === canon.toLowerCase())) {
+      customStores.value.push(canon)
     }
   }
 
@@ -203,7 +232,9 @@ export const useShoppingListStore = defineStore('shoppingList', () => {
     clearDone,
     setStore,
     setQuantity,
+    setName,
     addStore,
-    removeStore
+    removeStore,
+    renameStore
   }
 })

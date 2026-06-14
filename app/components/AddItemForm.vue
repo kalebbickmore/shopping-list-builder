@@ -65,11 +65,13 @@ function pick(food: FoodSuggestion) {
       />
     </div>
 
-    <div class="flex gap-2">
+    <!-- flex-wrap so on narrow screens the search takes the full first line and
+         store / quantity / add wrap onto the next. -->
+    <div class="flex flex-wrap gap-2">
       <!-- Food search. The dropdown lives inside this relative wrapper, so it
            only spans the search box's width, the store field beside it stays
            visible. -->
-      <div class="relative flex-1">
+      <div class="relative w-full sm:w-auto sm:flex-1">
         <UInput
           v-model="query"
           placeholder="Search foods…"
@@ -137,7 +139,7 @@ function pick(food: FoodSuggestion) {
         v-model="store"
         placeholder="Store"
         icon="i-lucide-store"
-        class="w-36"
+        class="flex-1 sm:w-36 sm:flex-none"
       >
         <template
           v-if="store"

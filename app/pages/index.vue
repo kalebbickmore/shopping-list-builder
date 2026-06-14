@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 // useShoppingListStore is auto-imported from app/stores by @pinia/nuxt; we import
 // it explicitly here just so the source is obvious while learning.
@@ -51,41 +51,41 @@ function cancelAddStore() {
   addingStore.value = false
 }
 
-// --- Celebration: a confetti burst the moment everything is gathered ---
-interface Confetto {
-  id: number
-  style: Record<string, string>
-}
-const confetti = ref<Confetto[]>([])
-const palette = ['var(--color-terracotta-400)', 'var(--color-terracotta-500)', 'var(--color-olive-400)', 'var(--color-olive-500)', 'var(--color-terracotta-200)']
-
-function celebrate() {
-  confetti.value = Array.from({ length: 18 }, (_, i) => ({
-    id: i,
-    style: {
-      'left': `${10 + Math.random() * 80}%`,
-      'background': palette[i % palette.length] as string,
-      'borderRadius': Math.random() > 0.5 ? '9999px' : '2px',
-      'animationDelay': `${Math.random() * 120}ms`,
-      '--cf-x': `${(Math.random() - 0.5) * 120}px`,
-      '--cf-y': `${-90 - Math.random() * 90}px`,
-      '--cf-r': `${(Math.random() - 0.5) * 720}deg`
-    }
-  }))
-  // Clear after the animation so the DOM stays tidy.
-  window.setTimeout(() => {
-    confetti.value = []
-  }, 1300)
+// --- Inline store renaming ---
+const editingStore = ref<string | null>(null)
+const renameDraft = ref('')
+// A function ref (not a string ref) because the input lives inside v-for, where
+// Vue would otherwise collect string refs into an array.
+const renameInput = ref<{ inputRef?: HTMLInputElement } | null>(null)
+function setRenameInput(el: unknown) {
+  renameInput.value = el as { inputRef?: HTMLInputElement } | null
 }
 
-// Only celebrate on the transition into "all done", not on initial hydrate.
-watch(allDone, (done, was) => {
-  if (done && was === false) celebrate()
-})
+async function startRename(name: string) {
+  editingStore.value = name
+  // Start blank when assigning the loose "Unassigned" items to a real store.
+  renameDraft.value = name === 'Unassigned' ? '' : name
+  await nextTick()
+  renameInput.value?.inputRef?.focus()
+  renameInput.value?.inputRef?.select()
+}
+
+function submitRename() {
+  if (editingStore.value === null) return
+  store.renameStore(editingStore.value, renameDraft.value)
+  editingStore.value = null
+}
+
+function cancelRename() {
+  editingStore.value = null
+}
 </script>
 
 <template>
-  <UContainer class="max-w-2xl space-y-7 py-10">
+  <UContainer class="max-w-2xl space-y-6 py-7 sm:space-y-7 sm:py-10">
+    <!-- Full-screen celebration when the whole list is gathered. -->
+    <PantryCelebration />
+
     <!-- Masthead -->
     <header class="space-y-4">
       <div class="flex items-end justify-between gap-4">
@@ -93,7 +93,7 @@ watch(allDone, (done, was) => {
           <p class="font-display text-sm italic text-primary">
             this week's
           </p>
-          <h1 class="font-display text-4xl font-semibold leading-none tracking-tight text-highlighted">
+          <h1 class="font-display text-3xl font-semibold leading-none tracking-tight text-highlighted sm:text-4xl">
             Pantry List
           </h1>
         </div>
@@ -154,20 +154,6 @@ watch(allDone, (done, was) => {
             class="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
             :class="allDone ? 'bg-secondary-500' : ''"
             :style="{ width: `${progress}%` }"
-          />
-        </div>
-
-        <!-- Confetti burst, anchored to the header. -->
-        <div
-          v-if="confetti.length"
-          class="pointer-events-none absolute inset-x-0 -top-6 h-0"
-          aria-hidden="true"
-        >
-          <span
-            v-for="c in confetti"
-            :key="c.id"
-            class="pantry-confetti-piece absolute top-0 size-2"
-            :style="c.style"
           />
         </div>
       </div>
@@ -281,29 +267,69 @@ watch(allDone, (done, was) => {
         @drop.prevent="onDrop(group.store, $event)"
       >
         <!-- Editorial section header -->
-        <div class="flex items-center gap-2.5 border-b border-default/70 px-4 py-3">
+        <div class="group/store flex items-center gap-2.5 border-b border-default/70 px-4 py-3">
           <div class="grid size-7 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
             <UIcon
               :name="group.store === 'Unassigned' ? 'i-lucide-circle-help' : 'i-lucide-store'"
               class="size-4"
             />
           </div>
-          <h2 class="flex-1 truncate font-display text-base font-semibold tracking-tight text-highlighted">
-            {{ group.store }}
-          </h2>
-          <span class="rounded-full bg-elevated px-2 py-0.5 text-xs font-semibold tabular-nums text-muted">
-            {{ group.items.length }}
-          </span>
-          <!-- Remove only empty, user-made stores, never destroys items. -->
-          <UButton
-            v-if="group.store !== 'Unassigned' && group.items.length === 0"
-            icon="i-lucide-trash-2"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            aria-label="Remove store"
-            @click="store.removeStore(group.store)"
-          />
+
+          <!-- Editing this store's name -->
+          <form
+            v-if="editingStore === group.store"
+            class="flex flex-1 items-center gap-1.5"
+            @submit.prevent="submitRename"
+          >
+            <UInput
+              :ref="setRenameInput"
+              v-model="renameDraft"
+              size="xs"
+              class="flex-1"
+              :placeholder="editingStore === 'Unassigned' ? 'Assign these to a store…' : ''"
+              :ui="{ base: 'font-display' }"
+              @keydown.esc="cancelRename"
+              @blur="submitRename"
+            />
+            <UButton
+              type="submit"
+              size="xs"
+              icon="i-lucide-check"
+              aria-label="Save store name"
+            />
+          </form>
+
+          <!-- Default: name with its edit button right beside it, then count
+               and remove pushed to the right. -->
+          <template v-else>
+            <div class="flex min-w-0 items-center gap-1">
+              <h2 class="truncate font-display text-base font-semibold tracking-tight text-highlighted">
+                {{ group.store }}
+              </h2>
+              <UButton
+                icon="i-lucide-pencil"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                aria-label="Rename store"
+                class="hover-reveal shrink-0"
+                @click="startRename(group.store)"
+              />
+            </div>
+            <span class="ml-auto rounded-full bg-elevated px-2 py-0.5 text-xs font-semibold tabular-nums text-muted">
+              {{ group.items.length }}
+            </span>
+            <!-- Remove only empty, user-made stores, never destroys items. -->
+            <UButton
+              v-if="group.store !== 'Unassigned' && group.items.length === 0"
+              icon="i-lucide-trash-2"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              aria-label="Remove store"
+              @click="store.removeStore(group.store)"
+            />
+          </template>
         </div>
 
         <ul
@@ -317,6 +343,7 @@ watch(allDone, (done, was) => {
             @toggle="store.toggleDone"
             @remove="store.removeItem"
             @set-quantity="store.setQuantity"
+            @set-name="store.setName"
           />
         </ul>
         <!-- Empty store: a hint that doubles as a clear drop target. -->

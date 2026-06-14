@@ -144,6 +144,26 @@ body::after {
   font-optical-sizing: auto;
 }
 
+/* Action buttons (edit, remove, grip) stay visible on touch devices, which have
+   no hover, and when focused for keyboard users. On pointer devices with hover
+   they fade in only when the row/header is hovered, keeping things calm. */
+.hover-reveal {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hover-reveal {
+    opacity: 0;
+  }
+
+  .group\/item:hover .hover-reveal,
+  .group\/store:hover .hover-reveal,
+  .hover-reveal:focus-visible {
+    opacity: 1;
+  }
+}
+
 /* Skeleton shimmer always available (used during the hydration window). */
 .pantry-shimmer {
   background:
@@ -214,23 +234,6 @@ body::after {
     animation: pantry-bump 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
-  /* Confetti: small clay/olive flecks tossed up when the list is complete. */
-  @keyframes pantry-confetti {
-    0% {
-      opacity: 0;
-      transform: translateY(0) rotate(0) scale(0.6);
-    }
-    10% { opacity: 1; }
-    100% {
-      opacity: 0;
-      transform: translateY(var(--cf-y, -120px)) translateX(var(--cf-x, 0)) rotate(var(--cf-r, 360deg)) scale(1);
-    }
-  }
-
-  .pantry-confetti-piece {
-    animation: pantry-confetti 1s ease-out forwards;
-  }
-
   /* Gentle celebratory wobble for the "all done" banner. */
   @keyframes pantry-cheer {
     0%, 100% { transform: rotate(0); }
@@ -240,5 +243,65 @@ body::after {
 
   .pantry-cheer {
     animation: pantry-cheer 0.6s ease-in-out;
+  }
+
+  /* ── Full-pantry celebration ──────────────────────────────────────────────
+     A full-screen confetti shower, an expanding glow, and a medallion that
+     springs in. Sized big because finishing the whole list is the payoff. */
+
+  /* Confetti rains from above the viewport, drifting and spinning as it falls. */
+  @keyframes celebrate-fall {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, -12vh, 0) rotate(0deg);
+    }
+    8% { opacity: 1; }
+    90% { opacity: 1; }
+    100% {
+      opacity: 0;
+      transform: translate3d(var(--cf-drift, 0), 112vh, 0) rotate(var(--cf-spin, 540deg));
+    }
+  }
+
+  .celebrate-fall {
+    animation: celebrate-fall var(--cf-dur, 3s) linear var(--cf-delay, 0s) forwards;
+  }
+
+  /* A warm radial burst that blooms out from behind the medallion. */
+  @keyframes celebrate-glow {
+    0% { opacity: 0; transform: scale(0.2); }
+    35% { opacity: 0.85; }
+    100% { opacity: 0; transform: scale(2.6); }
+  }
+
+  .celebrate-glow {
+    animation: celebrate-glow 1.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  /* The medallion springs in with an overshoot, holds, then drifts away. */
+  @keyframes celebrate-pop {
+    0% { opacity: 0; transform: scale(0.4) rotate(-10deg); }
+    55% { opacity: 1; transform: scale(1.1) rotate(3deg); }
+    70% { transform: scale(0.96) rotate(0deg); }
+    84% { transform: scale(1.03); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes celebrate-pop-out {
+    to { opacity: 0; transform: scale(1.15) translateY(-8px); }
+  }
+
+  .celebrate-pop {
+    animation:
+      celebrate-pop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+      celebrate-pop-out 0.5s ease 2.4s forwards;
+  }
+}
+
+/* Reduced-motion users still get a calm, static medallion (confetti and glow
+   are not rendered at all by the component in that case). */
+@media (prefers-reduced-motion: reduce) {
+  .celebrate-pop {
+    opacity: 1;
   }
 }
